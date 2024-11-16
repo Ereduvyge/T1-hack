@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import ast
 
 history_to_tasks_mapping = {
     'Время решения 3ЛП ФАКТ': None,
@@ -76,7 +77,7 @@ history_to_tasks_mapping = {
 
 
 def belogurovs_algorithm(df_tasks: pd.DataFrame, df_history: pd.DataFrame, data_sprints: pd.DataFrame) -> pd.DataFrame | str | None:
-    try:
+    # try:
         # Convert date columns to datetime
         df_tasks['create_date'] = pd.to_datetime(df_tasks['create_date'])
         df_history = df_history.dropna(how='all')
@@ -118,36 +119,67 @@ def belogurovs_algorithm(df_tasks: pd.DataFrame, df_history: pd.DataFrame, data_
         # After forward fill, drop duplicates if necessary
         combined_df = combined_df.drop_duplicates(subset=['entity_id', 'snapshot_datetime'])
 
-        # Step 1: Precompute the tasks_set and create a DataFrame with it
-        data_sprints['tasks_set'] = data_sprints['entity_ids'].apply(lambda x: set(eval(x)))
-
-        # Step 2: Create a DataFrame from combined_df with the columns of interest (entity_id, snapshot_datetime)
-        combined_df = combined_df[['entity_id', 'snapshot_datetime']]
-
-        # Step 3: Create a DataFrame that maps entity_ids to sprints using the tasks_set column.
-        # This step is for matching each entity_id to the relevant sprint based on entity_id and snapshot_datetime.
-        # We will "explode" entity_ids into multiple rows for each sprint, allowing us to merge later.
-
-        # Exploding df_sprints based on tasks_set
-        exploded_sprints = data_sprints.explode('tasks_set')[['sprint_name', 'tasks_set', 'sprint_start_date', 'sprint_end_date']]
-
-        # Step 4: Merge combined_df with exploded_sprints on entity_id and tasks_set
-        merged_df = combined_df.merge(exploded_sprints, left_on='entity_id', right_on='tasks_set', how='left')
-
-        # Step 5: Filter rows based on snapshot_datetime within sprint_start_date and sprint_end_date
-        merged_df['is_in_sprint'] = (merged_df['snapshot_datetime'] >= merged_df['sprint_start_date']) & \
-                                    (merged_df['snapshot_datetime'] <= merged_df['sprint_end_date'])
-
-        # Step 6: Filter out rows where 'is_in_sprint' is False (no valid sprint for this entity_id and snapshot_datetime)
-        valid_sprints = merged_df[merged_df['is_in_sprint']]
-
-        # Step 7: For rows that match, take the sprint_name. If no match is found, keep NaN
-        combined_df['sprint_id'] = valid_sprints.groupby('entity_id')['sprint_name'].first()
-
-        # Step 8: Fill NaN values with None if necessary
-        combined_df['sprint_id'] = combined_df['sprint_id'].fillna(None)
-
+        # Safely parse 'entity_ids' strings in df_sprints to lists using ast.literal_eval
+        # def parse_entity_ids(x):
+        #     try:
+        #         return ast.literal_eval(x)
+        #     except (ValueError, SyntaxError):
+        #         return []
+    
+        data_sprints['entity_ids_list'] = data_sprints['entity_ids'].apply(lambda x: ast.literal_eval(x) if isinstance(x, str) and not pd.isna(x) else [])
+    
+        # Explode 'entity_ids_list' to get one row per entity_id per sprint
+        df_sprints_exploded = data_sprints.explode('entity_ids_list')
+        df_sprints_exploded.rename(columns={'entity_ids_list': 'entity_id'}, inplace=True)
+    
+        # Ensure 'entity_id' types match in both DataFrames
+        combined_df['entity_id'] = combined_df['entity_id'].astype(str)
+        df_sprints_exploded['entity_id'] = df_sprints_exploded['entity_id'].astype(str)
+    
+        # Convert date columns to datetime in df_sprints_exploded
+        df_sprints_exploded['sprint_start_date'] = pd.to_datetime(df_sprints_exploded['sprint_start_date'])
+        df_sprints_exploded['sprint_end_date'] = pd.to_datetime(df_sprints_exploded['sprint_end_date'])
+    
+        # Merge combined_df with df_sprints_exploded on 'entity_id'
+        merged_df = combined_df.merge(
+            df_sprints_exploded[['entity_id', 'sprint_start_date', 'sprint_end_date', 'sprint_name']],
+            on='entity_id',
+            how='left'
+        )
+    
+        # Ensure datetime formats are correct
+        merged_df['snapshot_datetime'] = pd.to_datetime(merged_df['snapshot_datetime'])
+    
+        # Filter rows where snapshot_datetime is within sprint date range
+        condition = (
+            (merged_df['snapshot_datetime'] >= merged_df['sprint_start_date']) &
+            (merged_df['snapshot_datetime'] <= merged_df['sprint_end_date'])
+        )
+        merged_df_filtered = merged_df[condition]
+    
+        # Sort to select the most relevant sprint
+        merged_df_filtered = merged_df_filtered.sort_values(
+            by=['entity_id', 'snapshot_datetime', 'sprint_start_date'],
+            ascending=[True, True, False]
+        )
+    
+        # Drop duplicates to keep one sprint per entity_id and snapshot_datetime
+        merged_df_filtered = merged_df_filtered.drop_duplicates(
+            subset=['entity_id', 'snapshot_datetime'],
+            keep='first'
+        )
+    
+        # Prepare sprint assignments DataFrame
+        sprint_assignments = merged_df_filtered[['entity_id', 'snapshot_datetime', 'sprint_name']]
+        sprint_assignments.rename(columns={'sprint_name': 'sprint_id'}, inplace=True)
+    
+        # Merge sprint assignments back into the combined_df
+        combined_df = combined_df.merge(
+            sprint_assignments,
+            on=['entity_id', 'snapshot_datetime'],
+            how='left'
+        )
         return combined_df
 
-    except Exception as e:
-        return f"{e}"
+    # except Exception as e:
+    #     return f"{e}"

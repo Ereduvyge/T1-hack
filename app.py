@@ -13,17 +13,20 @@ from addons.enhancement import belogurovs_algorithm
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 
 def concatenate_files(contents_list, filenames):
-    if contents_list is not None:
-        dfs = []
-        for contents, filename in zip(contents_list, filenames):
-            content_type, content_string = contents.split(',')
-            decoded = base64.b64decode(content_string)
-            df = pd.read_csv(io.StringIO(decoded.decode('utf-8')), sep=';', header=1)
-            dfs.append(df)
-        if dfs:
-            concatenated_df = pd.concat(dfs, ignore_index=True)
-            return concatenated_df
-    return pd.DataFrame()
+    try:
+        if contents_list is not None:
+            dfs = []
+            for contents, filename in zip(contents_list, filenames):
+                content_type, content_string = contents.split(',')
+                decoded = base64.b64decode(content_string)
+                df = pd.read_csv(io.StringIO(decoded.decode('utf-8')), sep=';', header=1)
+                dfs.append(df)
+            if dfs:
+                concatenated_df = pd.concat(dfs, ignore_index=True)
+                return concatenated_df
+        return pd.DataFrame()
+    except:
+        return pd.DataFrame()
 
 # Main layout
 app.layout = dbc.Container([
@@ -169,19 +172,17 @@ def upload_output(n_clicks, tasks_contents, history_contents, sprints_contents,
             'Все файлы должны быть в .csv формате', None, [], None, {'display': 'none'}, 
         )
 
-    # Merge dataframes
-    data = pd.read_csv('test_df.csv')
+
     print('here')
     d1 = datetime.now()
     data = belogurovs_algorithm(tasks_df, history_df, sprints_df)
     d2 = datetime.now()
     print(d2 - d1)
     print('here2')
-
     # Преобразование дат
     data['snapshot_datetime'] = pd.to_datetime(data['snapshot_datetime'])
     # Преобразуем в количество секунд с эпохи UNIX
-    data['timestamp'] = data['snapshot_datetime'].astype(int) / 10**9
+    data['timestamp'] = data['snapshot_datetime'].astype('int64') / 10**9
     min_date = data['timestamp'].min()
     max_date = data['timestamp'].max()
 
