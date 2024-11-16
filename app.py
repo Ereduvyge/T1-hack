@@ -13,20 +13,17 @@ from addons.enhancement import belogurovs_algorithm
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 
 def concatenate_files(contents_list, filenames):
-    try:
-        if contents_list is not None:
-            dfs = []
-            for contents, filename in zip(contents_list, filenames):
-                content_type, content_string = contents.split(',')
-                decoded = base64.b64decode(content_string)
-                df = pd.read_csv(io.StringIO(decoded.decode('utf-8')), sep=';', header=1)
-                dfs.append(df)
-            if dfs:
-                concatenated_df = pd.concat(dfs, ignore_index=True)
-                return concatenated_df
-        return pd.DataFrame()
-    except:
-        return pd.DataFrame()
+    if contents_list is not None:
+        dfs = []
+        for contents, filename in zip(contents_list, filenames):
+            content_type, content_string = contents.split(',')
+            decoded = base64.b64decode(content_string)
+            df = pd.read_csv(io.StringIO(decoded.decode('utf-8')), sep=';', header=1)
+            dfs.append(df)
+        if dfs:
+            concatenated_df = pd.concat(dfs, ignore_index=True)
+            return concatenated_df
+    return pd.DataFrame()
 
 # Main layout
 app.layout = dbc.Container([
@@ -95,18 +92,29 @@ app.layout = dbc.Container([
     html.Hr(),
     # Placeholders for dropdown and graphs
     html.Div([
-        html.H1("Sprint Dashboard"),
-        html.Br(),
-        dcc.Dropdown(
-            id="sprint_selector",
-            options=[],
-            value=None,
-            multi=False
-        ),
-        dcc.Graph(id="status_chart", figure={}),
-        dcc.Graph(id="time_chart", figure={}),
-        dcc.Graph(id="priority_chart", figure={}),
-    ], style={'display': 'none'}, id='dashboard-content'),
+    html.H1("Sprint Dashboard"),
+    html.Br(),
+    dcc.Dropdown(
+        id="sprint_selector",
+        options=[],
+        value=None,
+        multi=False
+    ),
+    html.Br(),
+    html.Label("Выберите дату, на которую отобразить состояние задач:"),
+    dcc.Slider(
+    id="date_slider",
+    min=0,  # Значения будут обновлены в колбэке
+    max=1,
+    step=14400,  # 4 часа в секундах
+    marks={},
+    value=0
+    ),
+    html.Br(),
+    dcc.Graph(id="status_chart", figure={}),
+    dcc.Graph(id="time_chart", figure={}),
+    dcc.Graph(id="priority_chart", figure={}),
+], style={'display': 'none'}, id='dashboard-content'),
 ])
 
 # Callback to update file upload statuses
@@ -125,7 +133,6 @@ def update_file_upload_status(tasks_filenames, history_filenames, sprints_filena
     
     return f"Файлы заданий: {tasks_files}", f"Файлы с историей: {history_files}", f"Файлы спринтов: {sprints_files}"
 
-# Callback to process uploaded files and update the dashboard
 @app.callback(
     Output('output-data-upload', 'children'),
     Output('data-store', 'data'),
@@ -143,17 +150,24 @@ def update_file_upload_status(tasks_filenames, history_filenames, sprints_filena
 def upload_output(n_clicks, tasks_contents, history_contents, sprints_contents,
                   tasks_filenames, history_filenames, sprints_filenames):
     if n_clicks is None:
-        return 'После загрузки нажмите получить данные', None, [], None, {'display': 'none'}
-    
+        # Возвращаем значения для всех 9 Outputs
+        return (
+            'После загрузки нажмите получить данные', None, [], None, {'display': 'none'}, 
+        )
+
     if not tasks_contents or not history_contents or not sprints_contents:
-        return 'Не все файлы загружены', None, [], None, {'display': 'none'}
+        return (
+            'Не все файлы загружены', None, [], None, {'display': 'none'}, 
+        )
 
     tasks_df = concatenate_files(tasks_contents, tasks_filenames)
     history_df = concatenate_files(history_contents, history_filenames)
     sprints_df = concatenate_files(sprints_contents, sprints_filenames)
 
     if tasks_df.empty or history_df.empty or sprints_df.empty:
-        return 'Все файлы должны быть в .csv формате', None, [], None, {'display': 'none'}
+        return (
+            'Все файлы должны быть в .csv формате', None, [], None, {'display': 'none'}, 
+        )
 
     # Merge dataframes
     data = pd.read_csv('test_df.csv')
@@ -164,59 +178,83 @@ def upload_output(n_clicks, tasks_contents, history_contents, sprints_contents,
     print(d2 - d1)
     print('here2')
 
-    # Parse dates
-    data['create_date'] = pd.to_datetime(data['create_date'])
-    data['update_date'] = pd.to_datetime(data['update_date'])
-    data['due_date'] = pd.to_datetime(data['due_date'])
+    # Преобразование дат
+    data['snapshot_datetime'] = pd.to_datetime(data['snapshot_datetime'])
+    # Преобразуем в количество секунд с эпохи UNIX
+    data['timestamp'] = data['snapshot_datetime'].astype(int) / 10**9
+    min_date = data['timestamp'].min()
+    max_date = data['timestamp'].max()
 
-    # Convert data to JSON for storage
+    # Конвертируем данные в JSON для хранения
     data_json = data.to_json(date_format='iso', orient='split')
 
-    # Update sprint selector options
+    # Уникальные значения спринтов
     unique_sprints = data['sprint_id'].unique()
     options = [{"label": f"Sprint {sprint}", "value": sprint} for sprint in unique_sprints]
-    value = unique_sprints[0] if len(unique_sprints) > 0 else None
+    
+    # Уникальные значения спринтов
+    unique_sprints = data['sprint_id'].dropna().unique()  # Убираем NaN значения
+    options = [{"label": f"Sprint {sprint}", "value": sprint} for sprint in unique_sprints if pd.notna(sprint)]
 
-    # Show the dashboard content
-    return '', data_json, options, value, {'display': 'block'}
+    # Выбираем первый спринт по умолчанию, если есть
+    default_sprint_value = unique_sprints[0] if len(unique_sprints) > 0 else None
 
-# Callback to update the charts based on the selected sprint
+
+    # Возвращаем обновленные параметры
+    return (
+        '', data_json, options, default_sprint_value, {'display': 'block'},
+    )
+
+
 @app.callback(
     [Output("status_chart", "figure"),
      Output("time_chart", "figure"),
      Output("priority_chart", "figure")],
-    [Input("sprint_selector", "value")],
+    [Input("sprint_selector", "value"),
+     Input("date_slider", "value")],
     [State('data-store', 'data')]
 )
-def update_charts(selected_sprint, data_json):
-    if data_json is None or selected_sprint is None:
-        return {}, {}, {}
+def update_charts(selected_sprint, selected_date, data_json):
+    if data_json is None or selected_sprint is None or selected_date is None:
+        return {}, {}, {"layout": {"title": "Данные не выбраны"}}
+
+    # Загрузка данных
     data = pd.read_json(data_json, orient='split')
 
-    # Filter data based on the selected sprint
-    filtered_data = data[data['sprint_id'] == selected_sprint]
+    # Преобразование timestamp в datetime
+    selected_datetime = pd.to_datetime(selected_date, unit='s')
+    # selected_datetime = selected_date
+    # datetime debug
+    print(f"Selected datetime: {selected_datetime}")
+    # print(data['timestamp'].unique())
 
-    # Check if filtered data is empty
+
+    # Фильтрация данных
+    filtered_data = data[
+        (data['sprint_id'] == selected_sprint) &
+        (data['timestamp'] == selected_datetime)
+    ]
+
     if filtered_data.empty:
-        return {}, {}, {}
+        return {}, {}, {"layout": {"title": "Нет данных для отображения"}}
 
-    # Status distribution chart
+    # График распределения статусов
     status_fig = px.pie(
         filtered_data,
         names="status",
         title="Распределение по статусам задач"
     )
 
-    # Estimation vs Spent Time chart
+    # График времени
     time_fig = px.bar(
         filtered_data,
         x="ticket_number",
-        y=["estimation", "spent"],
+        y=["state"],
         barmode="group",
-        title="Оценка vs Затраченное время"
+        title="Состояния задач"
     )
 
-    # Tasks by Priority and Status chart
+    # График задач по приоритетам
     priority_fig = px.bar(
         filtered_data,
         x="priority",
@@ -227,5 +265,52 @@ def update_charts(selected_sprint, data_json):
 
     return status_fig, time_fig, priority_fig
 
+
+@app.callback(
+    Output('date_slider', 'min'),
+    Output('date_slider', 'max'),
+    Output('date_slider', 'marks'),
+    Output('date_slider', 'value'),
+    Input('sprint_selector', 'value'),
+    State('data-store', 'data')
+)
+def update_slider_dates(selected_sprint, data_json):
+    if selected_sprint is None or data_json is None:
+        return 0, 1, {}, 0
+
+    # Загрузка данных
+    data = pd.read_json(data_json, orient='split')
+
+    # Фильтрация данных по выбранному спринту
+    sprint_data = data[data['sprint_id'] == selected_sprint]
+
+    if sprint_data.empty:
+        return 0, 1, {}, 0
+
+    # Получаем минимальные и максимальные даты для выбранного спринта
+    min_date = sprint_data['timestamp'].min()
+    max_date = sprint_data['timestamp'].max()
+
+    print('data type', min_date.timestamp())
+
+    # Преобразуем min_date и max_date в секунды
+    min_date_seconds = int(min_date.timestamp())  # Преобразуем в секунды
+    max_date_seconds = int(max_date.timestamp())  # Преобразуем в секунды
+
+    # Формируем метки слайдера для доступных дат
+    marks = {
+        int(row.timestamp()): row.strftime('%Y-%m-%d %H:%M')  # Преобразуем в timestamp и форматируем для отображения
+        for row in pd.to_datetime(sprint_data['snapshot_datetime']).sort_values().unique()
+    }
+
+    # Устанавливаем значение слайдера на минимальную дату по умолчанию
+    value = min_date_seconds  # Устанавливаем значение слайдера на минимальную дату по умолчанию
+
+    return min_date_seconds, max_date_seconds, marks, value
+
+
+
+
+
 if __name__ == '__main__':
-    app.run_server(debug=True)
+    app.run_server(debug=True, port='9090')
