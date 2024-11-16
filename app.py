@@ -5,6 +5,7 @@ import pandas as pd
 import io
 import base64
 import plotly.express as px
+from datetime import datetime, timedelta
 
 from addons.enhancement import belogurovs_algorithm
 
@@ -157,7 +158,10 @@ def upload_output(n_clicks, tasks_contents, history_contents, sprints_contents,
     # Merge dataframes
     data = pd.read_csv('test_df.csv')
     print('here')
+    d1 = datetime.now()
     data = belogurovs_algorithm(tasks_df, history_df, sprints_df)
+    d2 = datetime.now()
+    print(d2 - d1)
     print('here2')
 
     # Parse dates

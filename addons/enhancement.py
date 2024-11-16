@@ -3,7 +3,7 @@ import numpy as np
 
 history_to_tasks_mapping = {
     'Время решения 3ЛП ФАКТ': None,
-    'Время решения (ФАКТ)': 'estimation',
+    'Время решения (ФАКТ)': None,
     'Исполнитель': 'assignee',
     'Срок исполнения': 'due_date',
     'Спринт': None,
@@ -74,104 +74,80 @@ history_to_tasks_mapping = {
 }
 
 
-# Функция для расчета snapshot_datetime
-def calculate_snapshot(dt):
-    hour = dt.hour
-    # Определяем ближайший конец интервала
-    snapshot_hour = (hour // 4 + 1) * 4
-    if snapshot_hour == 24:  # Если округление до следующего дня
-        return dt.replace(hour=0, minute=0, second=0, microsecond=0) + pd.Timedelta(days=1)
-    else:
-        return dt.replace(hour=snapshot_hour, minute=0, second=0, microsecond=0)
-    
-
-# Функция для получения нового значения после '->' в history_change
-def extract_new_value(change):
-    if pd.isna(change) or '->' not in change:
-        return None
-    return change.split('->')[-1].strip()
-
 
 def belogurovs_algorithm(df_tasks: pd.DataFrame, df_history: pd.DataFrame, data_sprints: pd.DataFrame) -> pd.DataFrame | str | None:
     try:
-
+        # Convert date columns to datetime
         df_tasks['create_date'] = pd.to_datetime(df_tasks['create_date'])
-        
-        df_history.dropna(how='all', inplace=True)
+        df_history = df_history.dropna(how='all')
         df_history['history_date'] = pd.to_datetime(df_history['history_date'])
 
-        # Для Каждой строки в df_history прикручиваю snapshot_datetime, и сразу удаляю все, кроме последнего изменения конкретного столбца в определенный промежуток времени
+        # Calculate snapshot_datetime using vectorized operations
+        df_history['snapshot_hour'] = ((df_history['history_date'].dt.hour // 4 + 1) * 4) % 24
+        df_history['snapshot_datetime'] = df_history['history_date'].dt.floor('D') + pd.to_timedelta(df_history['snapshot_hour'], unit='H')
+        df_history.loc[df_history['snapshot_hour'] == 0, 'snapshot_datetime'] += pd.Timedelta(days=1)
 
-        df_history['snapshot_datetime'] = df_history['history_date'].apply(calculate_snapshot)
+        # Drop duplicates to keep the last change per property in each snapshot interval
         df = df_history.sort_values(by=['entity_id', 'snapshot_datetime', 'history_property_name', 'history_date'])
         df = df.drop_duplicates(subset=['entity_id', 'snapshot_datetime', 'history_property_name'], keep='last')
 
-        # Далее мы соберем df, который будет состоять из столбцов nan в полях, где нет изменений,  а в остальных как раз ставится значение, которое изменили
-        # Шаг 1. Создаем пустой DataFrame на основе второго DataFrame
-        columns = [
-            "entity_id", 
-            "area", 
-            "type", 
-            "status", 
-            "state", 
-            "priority", 
-            "ticket_number", 
-            "name", 
-            "create_date", 
-            "created_by", 
-            "update_date", 
-            "updated_by", 
-            "parent_ticket_id", 
-            "assignee", 
-            "owner", 
-            "due_date", 
-            "rank", 
-            "estimation", 
-            "spent", 
-            "workgroup", 
-            "resolution", 
-            "snapshot_datetime"
-        ]
-        new_df = pd.DataFrame(columns=columns)
+        # Map history_property_name to corresponding column names using the mapping dictionary
+        df['column_name'] = df['history_property_name'].map(history_to_tasks_mapping)
 
-        # Шаг 2. Заполняем entity_id и snapshot_datetime
-        new_df['entity_id'] = df['entity_id']
-        new_df['snapshot_datetime'] = df['snapshot_datetime']
+        # Extract new values from history_change using vectorized string operations
+        df['new_value'] = df['history_change'].str.extract(r'->\s*(.*)').iloc[:, 0]
 
-        # Шаг 3. Заполняем соответствующие столбцы значениями из history_change
-        for index, row in df.iterrows():
-            history_property  = row['history_property_name']
-            new_value = extract_new_value(row['history_change'])
+        # Create a pivot table to reshape the DataFrame
+        pivot_df = df.pivot_table(
+            index=['entity_id', 'snapshot_datetime'],
+            columns='column_name',
+            values='new_value',
+            aggfunc='first'
+        ).reset_index()
 
-            # Проверяем, есть ли соответствующая колонка для history_property_name в словаре
-            if history_property in history_to_tasks_mapping:
-                column_name = history_to_tasks_mapping[history_property]
-                if column_name in new_df.columns and new_value is not None:
-                    new_df.loc[index, column_name] = new_value
+        # Combine df_tasks with the pivot_df
+        df_tasks['snapshot_datetime'] = df_tasks['create_date']
+        combined_df = pd.concat([df_tasks, pivot_df], ignore_index=True)
 
-        # Шаг 4. Заполняем все остальные значения как None
-        new_df = new_df.fillna(np.nan)
+        # Sort and group by entity_id and snapshot_datetime
+        combined_df = combined_df.sort_values(by=['entity_id', 'snapshot_datetime'])
 
-        df_final = df_tasks
-        df_final['snapshot_datetime'] = df_final['create_date'].apply(calculate_snapshot)
+        # Forward fill missing values within each group
+        combined_df = combined_df.groupby('entity_id').apply(lambda group: group.ffill()).reset_index(drop=True)
 
-        # Объединяем df_tasks и new_df
-        combined_df = pd.concat([df_final, new_df], ignore_index=True)
+        # After forward fill, drop duplicates if necessary
+        combined_df = combined_df.drop_duplicates(subset=['entity_id', 'snapshot_datetime'])
 
-        # Сортируем по snapshot_datetime
-        combined_df = combined_df.sort_values(by=['entity_id', 'snapshot_datetime']).reset_index(drop=True)
-        # Группируем данные по entity_id и snapshot_datetime и заполняем первое ненулевое значение для каждой колонки
-        combined_df = combined_df.groupby(['entity_id', 'snapshot_datetime'], as_index=False).first()
+        # Step 1: Precompute the tasks_set and create a DataFrame with it
+        data_sprints['tasks_set'] = data_sprints['entity_ids'].apply(lambda x: set(eval(x)))
 
-        combined_df = combined_df.sort_values(by=['entity_id', 'snapshot_datetime']).reset_index(drop=True)
+        # Step 2: Create a DataFrame from combined_df with the columns of interest (entity_id, snapshot_datetime)
+        combined_df = combined_df[['entity_id', 'snapshot_datetime']]
 
-        # Сначала сортируем данные по entity_id и snapshot_datetime, чтобы значения были упорядочены
-        combined_df = combined_df.sort_values(by=['entity_id', 'snapshot_datetime']).reset_index(drop=True)
+        # Step 3: Create a DataFrame that maps entity_ids to sprints using the tasks_set column.
+        # This step is for matching each entity_id to the relevant sprint based on entity_id and snapshot_datetime.
+        # We will "explode" entity_ids into multiple rows for each sprint, allowing us to merge later.
 
-        # Применяем заполнение пропусков по каждому entity_id, используя forward fill (ffill)
-        combined_df = combined_df.groupby('entity_id', as_index=False).apply(lambda group: group.ffill()).reset_index(drop=True)
+        # Exploding df_sprints based on tasks_set
+        exploded_sprints = data_sprints.explode('tasks_set')[['sprint_name', 'tasks_set', 'sprint_start_date', 'sprint_end_date']]
+
+        # Step 4: Merge combined_df with exploded_sprints on entity_id and tasks_set
+        merged_df = combined_df.merge(exploded_sprints, left_on='entity_id', right_on='tasks_set', how='left')
+
+        # Step 5: Filter rows based on snapshot_datetime within sprint_start_date and sprint_end_date
+        merged_df['is_in_sprint'] = (merged_df['snapshot_datetime'] >= merged_df['sprint_start_date']) & \
+                                    (merged_df['snapshot_datetime'] <= merged_df['sprint_end_date'])
+
+        # Step 6: Filter out rows where 'is_in_sprint' is False (no valid sprint for this entity_id and snapshot_datetime)
+        valid_sprints = merged_df[merged_df['is_in_sprint']]
+
+        # Step 7: For rows that match, take the sprint_name. If no match is found, keep NaN
+        combined_df['sprint_id'] = valid_sprints.groupby('entity_id')['sprint_name'].first()
+
+        # Step 8: Fill NaN values with None if necessary
+        combined_df['sprint_id'] = combined_df['sprint_id'].fillna(None)
 
         return combined_df
+
     except Exception as e:
         return f"{e}"
-
