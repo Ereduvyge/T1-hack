@@ -1,0 +1,13 @@
+django
+plotly
+pandas
+numpy
+django-plotly-dash
+channels 
+daphne
+redis
+django-redis
+channels-redis
+psycopg2
+dash
+djangorestframework
