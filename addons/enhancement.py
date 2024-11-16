@@ -77,7 +77,7 @@ history_to_tasks_mapping = {
 
 
 def belogurovs_algorithm(df_tasks: pd.DataFrame, df_history: pd.DataFrame, data_sprints: pd.DataFrame) -> pd.DataFrame | str | None:
-    # try:
+    try:
         # Convert date columns to datetime
         df_tasks['create_date'] = pd.to_datetime(df_tasks['create_date'])
         df_history = df_history.dropna(how='all')
@@ -120,21 +120,21 @@ def belogurovs_algorithm(df_tasks: pd.DataFrame, df_history: pd.DataFrame, data_
         combined_df = combined_df.drop_duplicates(subset=['entity_id', 'snapshot_datetime'])
 
         # Safely parse 'entity_ids' strings in df_sprints to lists using ast.literal_eval
-        # def parse_entity_ids(x):
-        #     try:
-        #         return ast.literal_eval(x)
-        #     except (ValueError, SyntaxError):
-        #         return []
+        def parse_entity_ids(x):
+            try:
+                return ast.literal_eval(x)
+            except (ValueError, SyntaxError):
+                return []
     
-        data_sprints['entity_ids_list'] = data_sprints['entity_ids'].apply(lambda x: ast.literal_eval(x) if isinstance(x, str) and not pd.isna(x) else [])
+        data_sprints['entity_ids_list'] = data_sprints['entity_ids'].apply(parse_entity_ids)
     
         # Explode 'entity_ids_list' to get one row per entity_id per sprint
         df_sprints_exploded = data_sprints.explode('entity_ids_list')
         df_sprints_exploded.rename(columns={'entity_ids_list': 'entity_id'}, inplace=True)
     
         # Ensure 'entity_id' types match in both DataFrames
-        combined_df['entity_id'] = combined_df['entity_id'].astype(str)
-        df_sprints_exploded['entity_id'] = df_sprints_exploded['entity_id'].astype(str)
+        combined_df['entity_id'] = combined_df['entity_id'].astype(int).astype(str)
+        df_sprints_exploded['entity_id'] = df_sprints_exploded['entity_id'].astype(int).astype(str)
     
         # Convert date columns to datetime in df_sprints_exploded
         df_sprints_exploded['sprint_start_date'] = pd.to_datetime(df_sprints_exploded['sprint_start_date'])
@@ -181,5 +181,5 @@ def belogurovs_algorithm(df_tasks: pd.DataFrame, df_history: pd.DataFrame, data_
         )
         return combined_df
 
-    # except Exception as e:
-    #     return f"{e}"
+    except Exception as e:
+        return f"{e}"
