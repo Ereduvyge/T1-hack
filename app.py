@@ -114,9 +114,10 @@ app.layout = dbc.Container([
     value=0
     ),
     html.Br(),
+    dcc.Graph(id="sprint_metrics_chart", figure={}),
+    dcc.Graph(id="priority_chart", figure={}),
     dcc.Graph(id="status_chart", figure={}),
     dcc.Graph(id="time_chart", figure={}),
-    dcc.Graph(id="priority_chart", figure={}),
 ], style={'display': 'none'}, id='dashboard-content'),
 ])
 
@@ -208,7 +209,8 @@ def upload_output(n_clicks, tasks_contents, history_contents, sprints_contents,
 
 
 @app.callback(
-    [Output("status_chart", "figure"),
+    [Output("sprint_metrics_chart", "figure"),
+     Output("status_chart", "figure"),
      Output("time_chart", "figure"),
      Output("priority_chart", "figure")],
     [Input("sprint_selector", "value"),
@@ -217,7 +219,7 @@ def upload_output(n_clicks, tasks_contents, history_contents, sprints_contents,
 )
 def update_charts(selected_sprint, selected_date, data_json):
     if data_json is None or selected_sprint is None or selected_date is None:
-        return {}, {}, {"layout": {"title": "Данные не выбраны"}}
+        return {}, {}, {}, {"layout": {"title": "Данные не выбраны"}}
 
     # Загрузка данных
     data = pd.read_json(data_json, orient='split')
@@ -233,12 +235,18 @@ def update_charts(selected_sprint, selected_date, data_json):
     # Фильтрация данных
     filtered_data = data[
         (data['sprint_id'] == selected_sprint) &
-        (data['timestamp'] == selected_datetime)
+        (data['timestamp'] == selected_datetime) &
+        (data['timestamp'].dt.microsecond == 0)
     ]
 
     if filtered_data.empty:
         return {}, {}, {"layout": {"title": "Нет данных для отображения"}}
 
+    # График метрик спринта
+    sprint_metrics_fig = px.bar(filtered_data.groupby(by='status').agg({'estimation':lambda x: x.sum()/3600}).reset_index(),
+       x='estimation', y='status', text_auto='.1f', title='Метрики спринта по статусам')
+    
+    
     # График распределения статусов
     status_fig = px.pie(
         filtered_data,
@@ -258,13 +266,14 @@ def update_charts(selected_sprint, selected_date, data_json):
     # График задач по приоритетам
     priority_fig = px.bar(
         filtered_data,
-        x="priority",
+        y="priority",
         color="status",
         title="Задачи по приоритету и статусу",
-        barmode="stack"
+        barmode="stack",
+        orientation='h'
     )
 
-    return status_fig, time_fig, priority_fig
+    return sprint_metrics_fig, status_fig, time_fig, priority_fig
 
 
 @app.callback(
@@ -283,7 +292,7 @@ def update_slider_dates(selected_sprint, data_json):
     data = pd.read_json(data_json, orient='split')
 
     # Фильтрация данных по выбранному спринту
-    sprint_data = data[data['sprint_id'] == selected_sprint]
+    sprint_data = data[(data['sprint_id'] == selected_sprint) & (data['timestamp'].dt.microsecond == 0)]
 
     if sprint_data.empty:
         return 0, 1, {}, 0
