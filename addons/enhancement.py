@@ -77,11 +77,6 @@ history_to_tasks_mapping = {
 
 def belogurovs_algorithm(df_tasks: pd.DataFrame, df_history: pd.DataFrame, data_sprints: pd.DataFrame) -> pd.DataFrame | str | None:
     try:
-        # Convert date columns to datetime
-        df_tasks['create_date'] = pd.to_datetime(df_tasks['create_date'])
-        df_history = df_history.dropna(how='all')
-        df_history['history_date'] = pd.to_datetime(df_history['history_date'])
-
         # Calculate snapshot_datetime using vectorized operations
         # df_history['snapshot_hour'] = ((df_history['history_date'].dt.hour // 4 + 1) * 4) % 24
         # df_history['snapshot_datetime'] = df_history['history_date'].dt.floor('D') + pd.to_timedelta(df_history['snapshot_hour'], unit='H')
@@ -142,10 +137,6 @@ def belogurovs_algorithm(df_tasks: pd.DataFrame, df_history: pd.DataFrame, data_
         combined_df['entity_id'] = combined_df['entity_id'].astype(int).astype(str)
         df_sprints_exploded['entity_id'] = df_sprints_exploded['entity_id'].astype(int).astype(str)
     
-        # Convert date columns to datetime in df_sprints_exploded
-        df_sprints_exploded['sprint_start_date'] = pd.to_datetime(df_sprints_exploded['sprint_start_date'])
-        df_sprints_exploded['sprint_end_date'] = pd.to_datetime(df_sprints_exploded['sprint_end_date'])
-    
         # Merge combined_df with df_sprints_exploded on 'entity_id'
         merged_df = combined_df.merge(
             df_sprints_exploded[['entity_id', 'sprint_start_date', 'sprint_end_date', 'sprint_name']],
@@ -153,15 +144,11 @@ def belogurovs_algorithm(df_tasks: pd.DataFrame, df_history: pd.DataFrame, data_
             how='left'
         )
     
-        # Ensure datetime formats are correct
-        merged_df['snapshot_datetime'] = pd.to_datetime(merged_df['snapshot_datetime'])
-    
         # Filter rows where snapshot_datetime is within sprint date range
-        condition = (
+        merged_df_filtered = merged_df[
             (merged_df['snapshot_datetime'] >= merged_df['sprint_start_date']) &
             (merged_df['snapshot_datetime'] <= merged_df['sprint_end_date'])
-        )
-        merged_df_filtered = merged_df[condition]
+            ]
     
         # Sort to select the most relevant sprint
         merged_df_filtered = merged_df_filtered.sort_values(
