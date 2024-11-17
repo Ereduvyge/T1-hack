@@ -274,15 +274,59 @@ def update_charts(selected_sprint, selected_team, selected_date, data_json):
         return {}, {}, {}, {"layout": {"title": "Нет данных для отображения"}}
 
     # График метрик спринта
-    sprint_metrics_fig = px.bar(filtered_data.groupby(by='status').agg({'estimation':lambda x: x.sum()/3600}).reset_index(),
-       x='estimation', y='status', text_auto='.1f', title='Метрики спринта по статусам')
-    
-    
+    # sprint_metrics_fig = px.bar(filtered_data.groupby(by='status').agg({'estimation':lambda x: x.sum()/3600}).reset_index(),
+    #    x='estimation', y='status', text_auto='.1f', title='Метрики спринта по статусам')
+
+    grouped_data = filtered_data.groupby(by='status').agg({'estimation': lambda x: x.sum() / 3600}).reset_index()
+
+    # Добавляем цвета для каждого статуса
+    color_mapping = {
+        'В работе': '#4472C4',  # Синий
+        'Выполнено': '#ED7D31',  # Оранжевый
+        'Закрыто': '#70AD47',  # Зеленый
+        'Отклонен': '#E74C3C',  # Красный
+        'Создан': '#00B0F0'  # Голубой
+    }
+
+    grouped_data['color'] = grouped_data['status'].map(color_mapping)
+
+    # Добавляем единую категорию для объединения всех статусов в один столбик
+    grouped_data['category'] = 'Статусы'
+
+    # Создаем горизонтальный график
+    sprint_metrics_fig = px.bar(
+        grouped_data,
+        x='estimation',
+        y='category',                # Одна категория — "Все статусы"
+        color='status',              # Используем цвет для статусов
+        color_discrete_map=color_mapping,
+        text='estimation',           # Показываем значения
+        title='Суммарные метрики спринта по статусам'
+    )
+
+    # Настройки оформления
+    sprint_metrics_fig.update_layout(
+        barmode='stack',             # Столбик в одном блоке
+        xaxis_title='Сумма часов',
+        yaxis_title='',              # Скрыть название оси Y
+        legend_title='Статусы',
+        uniformtext_minsize=8,
+        uniformtext_mode='hide'
+    )
+
+    # Добавляем текст для лучшей читаемости
+    sprint_metrics_fig.update_traces(textposition='inside', texttemplate='%{text:.1f}')
+
+
+    ###########
+     
     # График распределения статусов
     status_fig = px.pie(
         filtered_data,
         names="status",
-        title="Распределение по статусам задач"
+        title="Распределение по статусам задач",
+        color='status',
+        color_discrete_map=color_mapping
     )
 
     # График времени
@@ -291,7 +335,8 @@ def update_charts(selected_sprint, selected_team, selected_date, data_json):
         x="ticket_number",
         y=["state"],
         barmode="group",
-        title="Состояния задач"
+        title="Состояния задач",
+        color_discrete_map=color_mapping
     )
 
     # График задач по приоритетам
@@ -301,7 +346,8 @@ def update_charts(selected_sprint, selected_team, selected_date, data_json):
         color="status",
         title="Задачи по приоритету и статусу",
         barmode="stack",
-        orientation='h'
+        orientation='h',
+        color_discrete_map=color_mapping
     )
 
     return sprint_metrics_fig, status_fig, time_fig, priority_fig
@@ -351,4 +397,4 @@ def update_slider_dates(selected_sprint, data_json):
 
 
 if __name__ == '__main__':
-    app.run_server(debug=True, host='0.0.0.0', port='8080')
+    app.run_server(debug=False, host='0.0.0.0', port='9090')
