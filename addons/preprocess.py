@@ -115,6 +115,9 @@ def preprocess(df: pd.DataFrame) -> pd.DataFrame:
             lambda status: status.replace(status, strip_resolution_mapping[status])
         )
 
+    if 'estimation' in df.columns:
+        df["estimation"] = df["estimation"].fillna(0)
+
     def filter_date_column(column):
         return column.find('_date') != -1
     date_columns = list(filter(filter_date_column, df.columns.tolist()))
