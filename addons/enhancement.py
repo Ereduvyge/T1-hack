@@ -107,7 +107,9 @@ def belogurovs_algorithm(df_tasks: pd.DataFrame, df_history: pd.DataFrame, data_
         ).reset_index()
 
         # Combine df_tasks with the pivot_df
-        df_tasks['snapshot_datetime'] = df_tasks['create_date']
+        df_tasks['snapshot_hour'] = ((df_tasks['create_date'].dt.hour // 4 + 1) * 4) % 24
+        df_tasks['snapshot_datetime'] = df_tasks['create_date'].dt.floor('D') + pd.to_timedelta(df_tasks['snapshot_hour'], unit='H')
+        df_tasks.loc[df_tasks['snapshot_hour'] == 0, 'snapshot_datetime'] += pd.Timedelta(days=1)
         combined_df = pd.concat([df_tasks, pivot_df], ignore_index=True)
 
         # Sort and group by entity_id and snapshot_datetime
