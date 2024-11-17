@@ -481,7 +481,7 @@ if __name__ == '__main__':
     if os.environ.get("APP_ENV", "test") == "production":
         import waitress
         app.logger.info('Starting the app with Waitress')
-        waitress.serve(app, host='0.0.0.0', port=8080)
+        waitress.serve(app.server, host='0.0.0.0', port=8080)
     else:
         app.run_server(
             debug=True, 
