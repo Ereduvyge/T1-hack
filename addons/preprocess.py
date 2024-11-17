@@ -17,7 +17,7 @@ status_mapping = {
     'introduction': 'Неопределено',
     'localization': 'Локализация',
     'readyForDevelopment': 'Готово к разработке',
-    'rejectedByThePerformer': 'Отклонен исполнителем',
+    'rejectedByThePerformer': 'Отменено',
     'review': 'Подтверждение',
     'st': 'СТ',
     'stCompleted': 'СТ Завершено',
@@ -42,7 +42,7 @@ strip_status_mapping = {
     'introduction': 'В работе',
     'localization': 'В работе',
     'readyForDevelopment': 'Создано',
-    'rejectedByThePerformer': 'Отклонен',
+    'rejectedByThePerformer': 'Отменено',
     'review': 'В работе',
     'st': 'В работе',
     'stCompleted': 'В работе',
@@ -62,7 +62,7 @@ strip_status_mapping_rus = {
     'В работе': 'В работе',
     'Локализация': 'В работе',
     'Готово к разработке': 'Создано',
-    'Отклонен исполнителем': 'Отклонен',
+    'Отклонен исполнителем': 'Отменено',
     'Подтверждение': 'В работе',
     'СТ': 'В работе',
     'СТ Завершено': 'В работе',
@@ -76,6 +76,13 @@ strip_priority_mapping = {
     'low': 'Низкий',
     'high': 'Высокий', 
     'critical': 'Критический'
+}
+
+strip_resolution_mapping = {
+    'Готово': 'Готово',
+    'Дубликат': 'Отменено',
+    'Отклонено': 'Отменено',
+    'Отменен инициатором': 'Отменено'
 }
 
 
@@ -92,12 +99,17 @@ def replace_status(history_change, strip_mapping):
 def preprocess(df: pd.DataFrame) -> pd.DataFrame:
     df = df.dropna(how='all')
     if 'history_change' in df.columns:
-        strip_mapping = combined_mapping = strip_status_mapping | strip_priority_mapping
+        strip_mapping = combined_mapping = strip_status_mapping | strip_priority_mapping | strip_resolution_mapping
         df['history_change'] = df['history_change'].apply(
             lambda x: replace_status(x, strip_mapping=strip_mapping)
         )
     if 'status' in df.columns:
         df["status"] = df["status"].apply(
+            lambda status: status.replace(status, strip_status_mapping_rus[status])
+        )
+
+    if 'resolution' in df.columns:
+        df["resolution"] = df["resolution"].apply(
             lambda status: status.replace(status, strip_status_mapping_rus[status])
         )
 
