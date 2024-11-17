@@ -351,4 +351,4 @@ def update_slider_dates(selected_sprint, data_json):
 
 
 if __name__ == '__main__':
-    app.run_server(debug=True, host='0.0.0.0', port='9090')
+    app.run_server(debug=False, host='0.0.0.0', port='9090')
