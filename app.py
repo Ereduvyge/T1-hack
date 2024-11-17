@@ -281,12 +281,13 @@ def update_charts(selected_sprint, selected_team, selected_date, data_json):
 
     # Добавляем цвета для каждого статуса
     color_mapping = {
-        'В работе': '#1f77b4',
-        'Выполнено': '#ff7f0e',
-        'Закрыто': '#2ca02c',
-        'Отклонен': '#d62728',
-        'Создан': '#9467bd'
+        'В работе': '#4472C4',  # Синий
+        'Выполнено': '#ED7D31',  # Оранжевый
+        'Закрыто': '#70AD47',  # Зеленый
+        'Отклонен': '#E74C3C',  # Красный
+        'Создан': '#00B0F0'  # Голубой
     }
+
     grouped_data['color'] = grouped_data['status'].map(color_mapping)
 
     # Добавляем единую категорию для объединения всех статусов в один столбик
@@ -323,7 +324,9 @@ def update_charts(selected_sprint, selected_team, selected_date, data_json):
     status_fig = px.pie(
         filtered_data,
         names="status",
-        title="Распределение по статусам задач"
+        title="Распределение по статусам задач",
+        color='status',
+        color_discrete_map=color_mapping
     )
 
     # График времени
@@ -332,7 +335,8 @@ def update_charts(selected_sprint, selected_team, selected_date, data_json):
         x="ticket_number",
         y=["state"],
         barmode="group",
-        title="Состояния задач"
+        title="Состояния задач",
+        color_discrete_map=color_mapping
     )
 
     # График задач по приоритетам
@@ -342,7 +346,8 @@ def update_charts(selected_sprint, selected_team, selected_date, data_json):
         color="status",
         title="Задачи по приоритету и статусу",
         barmode="stack",
-        orientation='h'
+        orientation='h',
+        color_discrete_map=color_mapping
     )
 
     return sprint_metrics_fig, status_fig, time_fig, priority_fig
