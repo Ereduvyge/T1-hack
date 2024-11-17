@@ -478,8 +478,13 @@ def update_slider_dates(selected_sprint, data_json):
 
 
 if __name__ == '__main__':
-    app.run_server(
-        debug=True if os.environ.get("APP_ENV", "test") != "production" else False, 
-        host='localhost' if os.environ.get("APP_ENV", "test") != "production" else '0.0.0.0', 
-        port='9090'
-    )
+    if os.environ.get("APP_ENV", "test") == "production":
+        import waitress
+        app.logger.info('Starting the app with Waitress')
+        waitress.serve(app, host='0.0.0.0', port=8080)
+    else:
+        app.run_server(
+            debug=True, 
+            host='localhost', 
+            port='9090'
+        )
