@@ -93,6 +93,11 @@ app.layout = dbc.Container([
     dbc.Button("Получить данные", id='process-button', color='primary', style={'margin': '20px'}),
     html.Div(id='output-data-upload'),
     html.Hr(),
+    dcc.Loading(
+        id="loading-1",
+        type="default",
+        children=html.Div(id="loading-output-1")
+    ),
     # Placeholders for dropdown and graphs
     html.Div([
     html.H1("Sprint Dashboard"),
@@ -143,6 +148,7 @@ def update_file_upload_status(tasks_filenames, history_filenames, sprints_filena
     Output('sprint_selector', 'options'),
     Output('sprint_selector', 'value'),
     Output('dashboard-content', 'style'),
+    Output("loading-output-1", "children"),
     Input('process-button', 'n_clicks'),
     State('upload-tasks', 'contents'),
     State('upload-history', 'contents'),
@@ -156,12 +162,12 @@ def upload_output(n_clicks, tasks_contents, history_contents, sprints_contents,
     if n_clicks is None:
         # Возвращаем значения для всех 9 Outputs
         return (
-            'После загрузки нажмите получить данные', None, [], None, {'display': 'none'}, 
+            'После загрузки нажмите получить данные', None, [], None, {'display': 'none'}, None
         )
 
     if not tasks_contents or not history_contents or not sprints_contents:
         return (
-            'Не все файлы загружены', None, [], None, {'display': 'none'}, 
+            'Не все файлы загружены', None, [], None, {'display': 'none'}, None
         )
 
     tasks_df = concatenate_files(tasks_contents, tasks_filenames)
@@ -170,7 +176,7 @@ def upload_output(n_clicks, tasks_contents, history_contents, sprints_contents,
 
     if tasks_df.empty or history_df.empty or sprints_df.empty:
         return (
-            'Все файлы должны быть в .csv формате', None, [], None, {'display': 'none'}, 
+            'Все файлы должны быть в .csv формате', None, [], None, {'display': 'none'}, None
         )
 
 
@@ -204,7 +210,7 @@ def upload_output(n_clicks, tasks_contents, history_contents, sprints_contents,
 
     # Возвращаем обновленные параметры
     return (
-        '', data_json, options, default_sprint_value, {'display': 'block'},
+        '', data_json, options, default_sprint_value, {'display': 'block'}, None
     )
 
 
