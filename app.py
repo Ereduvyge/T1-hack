@@ -5,16 +5,20 @@ import pandas as pd
 import io
 import base64
 import plotly.express as px
+import plotly.graph_objects as go
 from datetime import datetime, timedelta
 
 from addons.enhancement import belogurovs_algorithm
 from addons.preprocess import preprocess
+from dotenv import load_dotenv
+load_dotenv()
+import os
 
 # Create Dash app
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 
 def concatenate_files(contents_list, filenames):
-    try:
+    #try:
         if contents_list is not None:
             dfs = []
             for contents, filename in zip(contents_list, filenames):
@@ -27,8 +31,8 @@ def concatenate_files(contents_list, filenames):
                 concatenated_df = preprocess(concatenated_df)
                 return concatenated_df
         return pd.DataFrame()
-    except:
-        return pd.DataFrame()
+    # except:
+    #     return pd.DataFrame()
 
 # Main layout
 app.layout = dbc.Container([
@@ -128,10 +132,11 @@ app.layout = dbc.Container([
     value=0
     ),
     html.Br(),
+    dcc.Graph(id="kpi_chart", figure={}),
     dcc.Graph(id="sprint_metrics_chart", figure={}),
     dcc.Graph(id="priority_chart", figure={}),
-    dcc.Graph(id="status_chart", figure={}),
-    dcc.Graph(id="time_chart", figure={}),
+    dcc.Graph(id="status_chart", figure={})
+    
 ], style={'display': 'none'}, id='dashboard-content'),
 ])
 
@@ -240,7 +245,7 @@ def upload_output(n_clicks, tasks_contents, history_contents, sprints_contents,
 @app.callback(
     [Output("sprint_metrics_chart", "figure"),
      Output("status_chart", "figure"),
-     Output("time_chart", "figure"),
+     Output("kpi_chart", "figure"),
      Output("priority_chart", "figure")],
     [Input("sprint_selector", "value"),
      Input("team_selector", "value"),
@@ -263,11 +268,23 @@ def update_charts(selected_sprint, selected_team, selected_date, data_json):
 
 
     # Фильтрация данных
-    filtered_data = data[
-        (data['sprint_id'] == selected_sprint) &
-        (data['timestamp'] == selected_datetime) &
-        (data['timestamp'].dt.microsecond == 0) &
-        (data['area'].isin(selected_team))
+    # filtered_data = data[
+    #     (data['sprint_id'] == selected_sprint) &
+    #     (data['timestamp'] == selected_datetime) &
+    #     (data.drop_duplicates(data['entity_id'], keep='last'))
+    #     (data['timestamp'].dt.microsecond == 0) &
+    #     (data['area'].isin(selected_team))
+    # ]
+    latest_data = (
+        data.sort_values(by='timestamp')
+            .drop_duplicates(subset='entity_id', keep='last')
+    )
+
+    # Фильтруем данные с учетом выбранных условий
+    filtered_data = latest_data[
+        (latest_data['sprint_id'] == selected_sprint) &  # Выбранный спринт
+        (latest_data['timestamp'] <= selected_datetime) &  # Учитываем временной срез
+        (latest_data['area'].isin(selected_team))  # Команды
     ]
 
     if filtered_data.empty:
@@ -284,7 +301,7 @@ def update_charts(selected_sprint, selected_team, selected_date, data_json):
         'В работе': '#4472C4',  # Синий
         'Выполнено': '#ED7D31',  # Оранжевый
         'Закрыто': '#70AD47',  # Зеленый
-        'Отклонен': '#E74C3C',  # Красный
+        'Отменено': '#E74C3C',  # Красный
         'Создан': '#00B0F0'  # Голубой
     }
 
@@ -350,7 +367,71 @@ def update_charts(selected_sprint, selected_team, selected_date, data_json):
         color_discrete_map=color_mapping
     )
 
-    return sprint_metrics_fig, status_fig, time_fig, priority_fig
+    # График по KPI
+    # Вычисление суммарного значения estimation
+    total_estimation = grouped_data['estimation'].sum()
+
+    # Вычисление суммарного estimation для статусов
+    in_progress_estimation = grouped_data[grouped_data['status'] == 'Создано']['estimation'].sum()
+    removed_estimation = grouped_data[grouped_data['status'] == 'Отменено']['estimation'].sum()
+
+    # Вычисление долей в процентах
+    in_progress_ratio = (in_progress_estimation / total_estimation) * 100 if total_estimation > 0 else 0
+    removed_ratio = (removed_estimation / total_estimation) * 100 if total_estimation > 0 else 0
+
+    # Установка цветов в зависимости от долей
+    in_progress_color = 'red' if in_progress_ratio > 30 else 'orange' if in_progress_ratio > 20 else 'green'
+    removed_color = 'red' if removed_ratio > 20 else 'orange' if removed_ratio > 10 else 'green'
+
+    # Создание карточки KPI
+    kpi_fig = go.Figure()
+
+    # Индикатор для статуса "К выполнению"
+    kpi_fig.add_trace(go.Indicator(
+        mode="number",
+        value=in_progress_ratio,
+        number={"font_color":in_progress_color, "suffix":"%", "valueformat":".1f"},
+        title={"text": "Доля 'Создано (к выполнению)' (%)"},
+        
+        domain={'x': [0, 0.33], 'y': [0, 1]},
+
+    ))
+
+    # Индикатор для статуса "Снято"
+    kpi_fig.add_trace(go.Indicator(
+        mode="number",
+        value=removed_ratio,
+        number={"font_color":removed_color, "suffix":"%", "valueformat":".1f"},
+        title={"text": "Доля 'Отменено (снято)' (%)"},
+        domain={'x': [0.33, 0.66], 'y': [0, 1]},
+    ))
+
+    # Доля изменения бэклога спринта
+
+    selected_sprint_and_team = data[(data['sprint_id'] == selected_sprint) & (data['area'].isin(selected_team))]
+
+    filtered_data_sprint_start = selected_sprint_and_team[selected_sprint_and_team['timestamp'] == min(selected_sprint_and_team['timestamp'])]
+    filtered_data_sprint_selected = selected_sprint_and_team[selected_sprint_and_team['timestamp'] <= selected_datetime]
+
+    start_tasks_set = set(filtered_data_sprint_start['entity_id'].unique())
+    selected_tasks_set = set(filtered_data_sprint_selected[filtered_data_sprint_selected['status'] != 'Отменено']['entity_id'].unique())
+
+    backlog_diff = round(len(selected_tasks_set - start_tasks_set) / len(start_tasks_set.union(selected_tasks_set)), 2) * 100 # Процент изменения бэклога спринта
+    backlog_diff_color = 'red' if backlog_diff > 30 else 'orange' if backlog_diff > 20 else 'green'
+
+    # Индикатор для статуса "Снято"
+    kpi_fig.add_trace(go.Indicator(
+        mode="number",
+        value=backlog_diff,
+        number={"font_color":backlog_diff_color, "suffix":'%'},
+        title={"text": "Изменение бэклога со старта (%)"},
+        domain={'x': [0.66, 1], 'y': [0, 1]},
+    ))
+
+    # Обновление макета
+    kpi_fig.update_layout(title="KPIs по статусам задач")
+
+    return sprint_metrics_fig, status_fig, kpi_fig, priority_fig
 
 
 @app.callback(
@@ -391,10 +472,14 @@ def update_slider_dates(selected_sprint, data_json):
     }
 
     # Устанавливаем значение слайдера на минимальную дату по умолчанию
-    value = min_date_seconds  # Устанавливаем значение слайдера на минимальную дату по умолчанию
+    value = max_date_seconds  # Устанавливаем значение слайдера на минимальную дату по умолчанию
 
     return min_date_seconds, max_date_seconds, marks, value
 
 
 if __name__ == '__main__':
-    app.run_server(debug=False, host='0.0.0.0', port='9090')
+    app.run_server(
+        debug=True if os.environ.get("APP_ENV", "test") != "production" else False, 
+        host='localhost' if os.environ.get("APP_ENV", "test") != "production" else '0.0.0.0', 
+        port='9090'
+    )

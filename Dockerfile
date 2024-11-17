@@ -1,6 +1,10 @@
 # Use an official Python runtime as a parent image
 FROM python:3.12-slim
 
+#Add ARG and ENV instructions here
+ARG APP_ENV
+ENV APP_ENV=$APP_ENV
+
 # Set the working directory in the container
 WORKDIR /app
 

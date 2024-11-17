@@ -3,3 +3,4 @@ numpy
 dash
 plotly
 dash-bootstrap-components
+python-dotenv

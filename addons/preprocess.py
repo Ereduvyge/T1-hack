@@ -1,31 +1,6 @@
 import pandas as pd
 import numpy as np
 
-status_mapping = {
-    '<empty>': '<empty>',
-    'analysis': 'Анализ',
-    'at': 'Неопределено',
-    'closed': 'Закрыто',
-    'created': 'Создано',
-    'design': 'Неопределено',
-    'development': 'Разработка',
-    'done': 'Выполнено',
-    'fixing': 'Исправление',
-    'hold': 'Отложен',
-    'ift': 'Неопределено',
-    'inProgress': 'В работе',
-    'introduction': 'Неопределено',
-    'localization': 'Локализация',
-    'readyForDevelopment': 'Готово к разработке',
-    'rejectedByThePerformer': 'Отклонен исполнителем',
-    'review': 'Подтверждение',
-    'st': 'СТ',
-    'stCompleted': 'СТ Завершено',
-    'testing': 'Тестирование',
-    'verification': 'Подтверждение исправления',
-    'waiting': 'В ожидании'
-}
-
 strip_status_mapping = {
     '<empty>': '<empty>',
     'analysis': 'В работе',
@@ -34,7 +9,7 @@ strip_status_mapping = {
     'created': 'Создано',
     'design': 'В работе',
     'development': 'В работе',
-    'done': 'Выполнено',
+    'done': 'В работе',
     'fixing': 'В работе',
     'hold': 'Отложен',
     'ift': 'В работе',
@@ -42,7 +17,7 @@ strip_status_mapping = {
     'introduction': 'В работе',
     'localization': 'В работе',
     'readyForDevelopment': 'Создано',
-    'rejectedByThePerformer': 'Отклонен',
+    'rejectedByThePerformer': 'Отменено',
     'review': 'В работе',
     'st': 'В работе',
     'stCompleted': 'В работе',
@@ -62,7 +37,7 @@ strip_status_mapping_rus = {
     'В работе': 'В работе',
     'Локализация': 'В работе',
     'Готово к разработке': 'Создано',
-    'Отклонен исполнителем': 'Отклонен',
+    'Отклонен исполнителем': 'Отменено',
     'Подтверждение': 'В работе',
     'СТ': 'В работе',
     'СТ Завершено': 'В работе',
@@ -78,13 +53,23 @@ strip_priority_mapping = {
     'critical': 'Критический'
 }
 
+strip_resolution_mapping = {
+    '<empty>': '<empty>',
+    'Готово': 'Выполнено',
+    'Создано': 'Создано',
+    'Дубликат': 'Отменено',
+    'Отклонено': 'Отменено',
+    'Отменен инициатором': 'Отменено'
+}
+
 
 def replace_status(history_change, strip_mapping):
     if isinstance(history_change, str) and '->' in history_change:
         for part in history_change.split('->'):
             part = part.strip()
+
             if part in strip_mapping.keys():
-                history_change = history_change.replace(part, strip_mapping[part])
+                history_change = history_change.replace(part, strip_mapping[part],1)
         return history_change
     return history_change
 
@@ -92,7 +77,7 @@ def replace_status(history_change, strip_mapping):
 def preprocess(df: pd.DataFrame) -> pd.DataFrame:
     df = df.dropna(how='all')
     if 'history_change' in df.columns:
-        strip_mapping = combined_mapping = strip_status_mapping | strip_priority_mapping
+        strip_mapping = combined_mapping = strip_status_mapping | strip_priority_mapping | strip_resolution_mapping
         df['history_change'] = df['history_change'].apply(
             lambda x: replace_status(x, strip_mapping=strip_mapping)
         )
@@ -100,6 +85,15 @@ def preprocess(df: pd.DataFrame) -> pd.DataFrame:
         df["status"] = df["status"].apply(
             lambda status: status.replace(status, strip_status_mapping_rus[status])
         )
+
+    if 'resolution' in df.columns:
+        df["resolution"] = df["resolution"].fillna('Создано')
+        df["resolution"] = df["resolution"].apply(
+            lambda status: status.replace(status, strip_resolution_mapping[status])
+        )
+
+    if 'estimation' in df.columns:
+        df["estimation"] = df["estimation"].fillna(0)
 
     def filter_date_column(column):
         return column.find('_date') != -1
