@@ -110,10 +110,13 @@ def preprocess(df: pd.DataFrame) -> pd.DataFrame:
         )
 
     if 'resolution' in df.columns:
-        df["resolution"] = df["resolution"].fillna('<empty>')
+        df["resolution"] = df["resolution"].fillna('Создано')
         df["resolution"] = df["resolution"].apply(
             lambda status: status.replace(status, strip_resolution_mapping[status])
         )
+
+    if 'estimation' in df.columns:
+        df["estimation"] = df["estimation"].fillna(0)
 
     def filter_date_column(column):
         return column.find('_date') != -1

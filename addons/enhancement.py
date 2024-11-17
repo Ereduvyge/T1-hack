@@ -173,6 +173,7 @@ def belogurovs_algorithm(df_tasks: pd.DataFrame, df_history: pd.DataFrame, data_
             on=['entity_id', 'snapshot_datetime'],
             how='left'
         )
+        
         return combined_df
 
     except Exception as e:
