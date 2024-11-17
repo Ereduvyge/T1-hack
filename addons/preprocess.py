@@ -26,7 +26,7 @@ status_mapping = {
     'waiting': 'В ожидании'
 }
 
-stip_status_mapping = {
+strip_status_mapping = {
     '<empty>': '<empty>',
     'analysis': 'В работе',
     'at': 'В работе',
@@ -51,7 +51,7 @@ stip_status_mapping = {
     'waiting': 'В ожидании'
 }
 
-stip_status_mapping_rus = {
+strip_status_mapping_rus = {
     'Анализ': 'В работе',
     'Закрыто': 'Закрыто',
     'Создано': 'Создано',
@@ -72,12 +72,23 @@ stip_status_mapping_rus = {
 }
 
 
+strip_priority_mapping = {
+    'average': 'Средний',
+    'low': 'Низкий',
+    'high': 'Высокий',
+    'critical': 'Критический'
+}
+
+
+strip_mapping = {}
+
+
 def replace_status(history_change):
     if isinstance(history_change, str) and '->' in history_change:
         for part in history_change.split('->'):
             part = part.strip()
-            if part in stip_status_mapping.keys():
-                history_change = history_change.replace(part, stip_status_mapping[part])
+            if part in strip_mapping.keys():
+                history_change = history_change.replace(part, strip_mapping[part])
         return history_change
     return history_change
 
@@ -85,11 +96,14 @@ def replace_status(history_change):
 def preprocess(df: pd.DataFrame) -> pd.DataFrame:
     df = df.dropna(how='all')
     if 'history_change' in df.columns:
+        strip_mapping = strip_status_mapping
+        df['history_change'] = df['history_change'].apply(replace_status)
+        strip_mapping = strip_priority_mapping
         df['history_change'] = df['history_change'].apply(replace_status)
 
     if 'status' in df.columns:
         df["status"] = df["status"].apply(
-            lambda status: status.replace(status, stip_status_mapping_rus[status])
+            lambda status: status.replace(status, strip_status_mapping_rus[status])
         )
 
     def filter_date_column(column):
