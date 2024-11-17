@@ -32,7 +32,7 @@ jobs:
       uses: yc-actions/yc-sls-container-deploy@v2.7.0
       with:
         yc-sa-json-credentials: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
-        container-name: landing
+        container-name: hackathon
         folder-id: ${{ secrets.YC_FOLDER_ID }}
         revision-service-account-id: ${{ secrets.YC_SA_ID }}
         revision-cores: 1
