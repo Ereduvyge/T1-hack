@@ -24,7 +24,7 @@ jobs:
         CR_REPOSITORY: ${{ secrets.CR_REPO }}
         IMAGE_TAG: ${{ github.sha }}
       run: |
-        docker build -t cr.yandex/$CR_REGISTRY/$CR_REPOSITORY:$IMAGE_TAG .
+        docker build --build-arg APP_ENV=production -t cr.yandex/$CR_REGISTRY/$CR_REPOSITORY:$IMAGE_TAG .
         docker push cr.yandex/$CR_REGISTRY/$CR_REPOSITORY:$IMAGE_TAG
 
     - name: Deploy Serverless Container
@@ -40,4 +40,4 @@ jobs:
         revision-core-fraction: 100
         revision-concurrency: 8
         revision-image-url: cr.yandex/${{ secrets.CR_REGISTRY }}/${{ secrets.CR_REPO }}:${{ github.sha }}
-        revision-execution-timeout: 10
+        revision-execution-timeout: 60

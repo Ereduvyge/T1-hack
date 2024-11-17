@@ -10,6 +10,9 @@ from datetime import datetime, timedelta
 
 from addons.enhancement import belogurovs_algorithm
 from addons.preprocess import preprocess
+from dotenv import load_dotenv
+load_dotenv()
+import os
 
 # Create Dash app
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
@@ -453,4 +456,8 @@ def update_slider_dates(selected_sprint, data_json):
 
 
 if __name__ == '__main__':
-    app.run_server(debug=True, host='0.0.0.0', port='9090')
+    app.run_server(
+        debug=True if os.environ.get("APP_ENV", "test") != "production" else False, 
+        host='localhost' if os.environ.get("APP_ENV", "test") != "production" else '0.0.0.0', 
+        port='9090'
+    )
