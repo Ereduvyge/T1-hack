@@ -417,7 +417,7 @@ def update_charts(selected_sprint, selected_team, selected_date, data_json):
     selected_tasks_set = set(filtered_data_sprint_selected[filtered_data_sprint_selected['status'] != 'Отменено']['entity_id'].unique())
 
     backlog_diff = round(len(selected_tasks_set - start_tasks_set) / len(start_tasks_set.union(selected_tasks_set)), 2) * 100 # Процент изменения бэклога спринта
-    backlog_diff_color = 'red' if backlog_diff > 30 else 'orange' if backlog_diff > 20 else 'green'
+    backlog_diff_color = 'red' if backlog_diff > 50 else 'orange' if backlog_diff > 20 else 'green'
 
     # Индикатор для статуса "Снято"
     kpi_fig.add_trace(go.Indicator(
@@ -478,8 +478,13 @@ def update_slider_dates(selected_sprint, data_json):
 
 
 if __name__ == '__main__':
-    app.run_server(
-        debug=True if os.environ.get("APP_ENV", "test") != "production" else False, 
-        host='localhost' if os.environ.get("APP_ENV", "test") != "production" else '0.0.0.0', 
-        port='9090'
-    )
+    if os.environ.get("APP_ENV", "test") == "production":
+        import waitress
+        app.logger.info('Starting the app with Waitress')
+        waitress.serve(app, host='0.0.0.0', port=8080)
+    else:
+        app.run_server(
+            debug=True, 
+            host='localhost', 
+            port='9090'
+        )
