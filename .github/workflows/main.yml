@@ -1,0 +1,43 @@
+name: CI/CD Pipeline            
+
+on:
+  push:
+    branches: [ prod ]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Login to Yandex Cloud Container Registry
+      id: login-cr
+      uses: yc-actions/yc-cr-login@v1
+      with:
+        yc-sa-json-credentials: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
+
+    - name: Build, tag, and push image to Yandex Cloud Container Registry
+      env:
+        CR_REGISTRY: ${{ secrets.CR_REGISTRY }}
+        CR_REPOSITORY: ${{ secrets.CR_REPO }}
+        IMAGE_TAG: ${{ github.sha }}
+      run: |
+        docker build -t cr.yandex/$CR_REGISTRY/$CR_REPOSITORY:$IMAGE_TAG .
+        docker push cr.yandex/$CR_REGISTRY/$CR_REPOSITORY:$IMAGE_TAG
+
+    - name: Deploy Serverless Container
+      id: deploy-sls-container
+      uses: yc-actions/yc-sls-container-deploy@v2.7.0
+      with:
+        yc-sa-json-credentials: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
+        container-name: hackathon
+        folder-id: ${{ secrets.YC_FOLDER_ID }}
+        revision-service-account-id: ${{ secrets.YC_SA_ID }}
+        revision-cores: 1
+        revision-memory: 2048Mb
+        revision-core-fraction: 100
+        revision-concurrency: 8
+        revision-image-url: cr.yandex/${{ secrets.CR_REGISTRY }}/${{ secrets.CR_REPO }}:${{ github.sha }}
+        revision-execution-timeout: 10
