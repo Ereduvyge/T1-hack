@@ -246,7 +246,7 @@ def update_charts(selected_sprint, selected_date, data_json):
     ]
 
     if filtered_data.empty:
-        return {}, {}, {"layout": {"title": "Нет данных для отображения"}}
+        return {}, {}, {}, {"layout": {"title": "Нет данных для отображения"}}
 
     # График метрик спринта
     sprint_metrics_fig = px.bar(filtered_data.groupby(by='status').agg({'estimation':lambda x: x.sum()/3600}).reset_index(),
