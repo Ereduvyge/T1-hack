@@ -390,7 +390,7 @@ def update_charts(selected_sprint, selected_team, selected_date, data_json):
         number={"font_color":in_progress_color, "suffix":"%", "valueformat":".1f"},
         title={"text": "Доля 'Создано (к выполнению)' (%)"},
         
-        domain={'x': [0, 0.5], 'y': [0, 1]},
+        domain={'x': [0, 0.33], 'y': [0, 1]},
 
     ))
 
@@ -400,7 +400,29 @@ def update_charts(selected_sprint, selected_team, selected_date, data_json):
         value=removed_ratio,
         number={"font_color":removed_color, "suffix":"%", "valueformat":".1f"},
         title={"text": "Доля 'Отменено (снято)' (%)"},
-        domain={'x': [0.5, 1], 'y': [0, 1]},
+        domain={'x': [0.33, 0.66], 'y': [0, 1]},
+    ))
+
+    # Доля изменения бэклога спринта
+
+    selected_sprint_and_team = data[(data['sprint_id'] == selected_sprint) & (data['area'].isin(selected_team))]
+
+    filtered_data_sprint_start = selected_sprint_and_team[selected_sprint_and_team['timestamp'] == min(selected_sprint_and_team['timestamp'])]
+    filtered_data_sprint_selected = selected_sprint_and_team[selected_sprint_and_team['timestamp'] <= selected_datetime]
+
+    start_tasks_set = set(filtered_data_sprint_start['entity_id'].unique())
+    selected_tasks_set = set(filtered_data_sprint_selected[filtered_data_sprint_selected['status'] != 'Отменено']['entity_id'].unique())
+
+    backlog_diff = round(len(selected_tasks_set - start_tasks_set) / len(start_tasks_set.union(selected_tasks_set)), 2) * 100 # Процент изменения бэклога спринта
+    backlog_diff_color = 'red' if backlog_diff > 30 else 'orange' if backlog_diff > 20 else 'green'
+
+    # Индикатор для статуса "Снято"
+    kpi_fig.add_trace(go.Indicator(
+        mode="number",
+        value=backlog_diff,
+        number={"font_color":backlog_diff_color, "suffix":'%'},
+        title={"text": "Изменение бэклога со старта (%)"},
+        domain={'x': [0.66, 1], 'y': [0, 1]},
     ))
 
     # Обновление макета
