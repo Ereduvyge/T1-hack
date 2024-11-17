@@ -8,6 +8,7 @@ import plotly.express as px
 from datetime import datetime, timedelta
 
 from addons.enhancement import belogurovs_algorithm
+from addons.preprocess import preprocess
 
 # Create Dash app
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
@@ -23,6 +24,7 @@ def concatenate_files(contents_list, filenames):
                 dfs.append(df)
             if dfs:
                 concatenated_df = pd.concat(dfs, ignore_index=True)
+                concatenated_df = preprocess(concatenated_df)
                 return concatenated_df
         return pd.DataFrame()
     except:
