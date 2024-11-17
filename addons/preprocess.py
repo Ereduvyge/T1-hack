@@ -92,4 +92,9 @@ def preprocess(df: pd.DataFrame) -> pd.DataFrame:
             lambda status: status.replace(status, stip_status_mapping_rus[status])
         )
 
+    def filter_date_column(column):
+        return column.find('_date') != -1
+    date_columns = list(filter(filter_date_column, df.columns.tolist()))
+    df[date_columns] = df[date_columns].apply(pd.to_datetime)
+
     return df
