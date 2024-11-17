@@ -79,7 +79,8 @@ strip_priority_mapping = {
 }
 
 strip_resolution_mapping = {
-    'Готово': 'Готово',
+    '<empty>': '<empty>',
+    'Готово': 'Выполнено',
     'Дубликат': 'Отменено',
     'Отклонено': 'Отменено',
     'Отменен инициатором': 'Отменено'
@@ -109,8 +110,9 @@ def preprocess(df: pd.DataFrame) -> pd.DataFrame:
         )
 
     if 'resolution' in df.columns:
+        df["resolution"] = df["resolution"].fillna('<empty>')
         df["resolution"] = df["resolution"].apply(
-            lambda status: status.replace(status, strip_status_mapping_rus[status])
+            lambda status: status.replace(status, strip_resolution_mapping[status])
         )
 
     def filter_date_column(column):
