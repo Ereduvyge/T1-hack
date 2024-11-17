@@ -5,6 +5,7 @@ import pandas as pd
 import io
 import base64
 import plotly.express as px
+import plotly.graph_objects as go
 from datetime import datetime, timedelta
 
 from addons.enhancement import belogurovs_algorithm
@@ -128,10 +129,11 @@ app.layout = dbc.Container([
     value=0
     ),
     html.Br(),
+    dcc.Graph(id="kpi_chart", figure={}),
     dcc.Graph(id="sprint_metrics_chart", figure={}),
     dcc.Graph(id="priority_chart", figure={}),
-    dcc.Graph(id="status_chart", figure={}),
-    dcc.Graph(id="time_chart", figure={}),
+    dcc.Graph(id="status_chart", figure={})
+    
 ], style={'display': 'none'}, id='dashboard-content'),
 ])
 
@@ -240,7 +242,7 @@ def upload_output(n_clicks, tasks_contents, history_contents, sprints_contents,
 @app.callback(
     [Output("sprint_metrics_chart", "figure"),
      Output("status_chart", "figure"),
-     Output("time_chart", "figure"),
+     Output("kpi_chart", "figure"),
      Output("priority_chart", "figure")],
     [Input("sprint_selector", "value"),
      Input("team_selector", "value"),
@@ -364,7 +366,49 @@ def update_charts(selected_sprint, selected_team, selected_date, data_json):
         color_discrete_map=color_mapping
     )
 
-    return sprint_metrics_fig, status_fig, time_fig, priority_fig
+    # График по KPI
+    # Вычисление суммарного значения estimation
+    total_estimation = grouped_data['estimation'].sum()
+
+    # Вычисление суммарного estimation для статусов
+    in_progress_estimation = grouped_data[grouped_data['status'] == 'Создано']['estimation'].sum()
+    removed_estimation = grouped_data[grouped_data['status'] == 'Отменено']['estimation'].sum()
+
+    # Вычисление долей в процентах
+    in_progress_ratio = (in_progress_estimation / total_estimation) * 100 if total_estimation > 0 else 0
+    removed_ratio = (removed_estimation / total_estimation) * 100 if total_estimation > 0 else 0
+
+    # Установка цветов в зависимости от долей
+    in_progress_color = 'red' if in_progress_ratio > 30 else 'orange' if in_progress_ratio > 20 else 'green'
+    removed_color = 'red' if removed_ratio > 20 else 'orange' if removed_ratio > 10 else 'green'
+
+    # Создание карточки KPI
+    kpi_fig = go.Figure()
+
+    # Индикатор для статуса "К выполнению"
+    kpi_fig.add_trace(go.Indicator(
+        mode="number",
+        value=in_progress_ratio,
+        number={"font_color":in_progress_color, "suffix":"%", "valueformat":".1f"},
+        title={"text": "Доля 'Создано (к выполнению)' (%)"},
+        
+        domain={'x': [0, 0.5], 'y': [0, 1]},
+
+    ))
+
+    # Индикатор для статуса "Снято"
+    kpi_fig.add_trace(go.Indicator(
+        mode="number",
+        value=removed_ratio,
+        number={"font_color":removed_color, "suffix":"%", "valueformat":".1f"},
+        title={"text": "Доля 'Отменено (снято)' (%)"},
+        domain={'x': [0.5, 1], 'y': [0, 1]},
+    ))
+
+    # Обновление макета
+    kpi_fig.update_layout(title="KPIs по статусам задач")
+
+    return sprint_metrics_fig, status_fig, kpi_fig, priority_fig
 
 
 @app.callback(
@@ -405,10 +449,10 @@ def update_slider_dates(selected_sprint, data_json):
     }
 
     # Устанавливаем значение слайдера на минимальную дату по умолчанию
-    value = min_date_seconds  # Устанавливаем значение слайдера на минимальную дату по умолчанию
+    value = max_date_seconds  # Устанавливаем значение слайдера на минимальную дату по умолчанию
 
     return min_date_seconds, max_date_seconds, marks, value
 
 
 if __name__ == '__main__':
-    app.run_server(debug=False, host='0.0.0.0', port='9090')
+    app.run_server(debug=True, host='0.0.0.0', port='9090')
