@@ -263,11 +263,25 @@ def update_charts(selected_sprint, selected_team, selected_date, data_json):
 
 
     # Фильтрация данных
-    filtered_data = data[
-        (data['sprint_id'] == selected_sprint) &
-        (data['timestamp'] == selected_datetime) &
-        (data['timestamp'].dt.microsecond == 0) &
-        (data['area'].isin(selected_team))
+    # filtered_data = data[
+    #     (data['sprint_id'] == selected_sprint) &
+    #     (data['timestamp'] == selected_datetime) &
+    #     (data.drop_duplicates(data['entity_id'], keep='last'))
+    #     (data['timestamp'].dt.microsecond == 0) &
+    #     (data['area'].isin(selected_team))
+    # ]
+    latest_data = (
+        data.sort_values(by='timestamp')
+            .drop_duplicates(subset='entity_id', keep='last')
+    )
+
+    print(latest_data)
+
+    # Фильтруем данные с учетом выбранных условий
+    filtered_data = latest_data[
+        (latest_data['sprint_id'] == selected_sprint) &  # Выбранный спринт
+        (latest_data['timestamp'] <= selected_datetime) &  # Учитываем временной срез
+        (latest_data['area'].isin(selected_team))  # Команды
     ]
 
     if filtered_data.empty:
