@@ -1,31 +1,6 @@
 import pandas as pd
 import numpy as np
 
-status_mapping = {
-    '<empty>': '<empty>',
-    'analysis': 'Анализ',
-    'at': 'Неопределено',
-    'closed': 'Закрыто',
-    'created': 'Создано',
-    'design': 'Неопределено',
-    'development': 'Разработка',
-    'done': 'Выполнено',
-    'fixing': 'Исправление',
-    'hold': 'Отложен',
-    'ift': 'Неопределено',
-    'inProgress': 'В работе',
-    'introduction': 'Неопределено',
-    'localization': 'Локализация',
-    'readyForDevelopment': 'Готово к разработке',
-    'rejectedByThePerformer': 'Отменено',
-    'review': 'Подтверждение',
-    'st': 'СТ',
-    'stCompleted': 'СТ Завершено',
-    'testing': 'Тестирование',
-    'verification': 'Подтверждение исправления',
-    'waiting': 'В ожидании'
-}
-
 strip_status_mapping = {
     '<empty>': '<empty>',
     'analysis': 'В работе',
@@ -34,7 +9,7 @@ strip_status_mapping = {
     'created': 'Создано',
     'design': 'В работе',
     'development': 'В работе',
-    'done': 'Выполнено',
+    'done': 'В работе',
     'fixing': 'В работе',
     'hold': 'Отложен',
     'ift': 'В работе',
@@ -92,8 +67,9 @@ def replace_status(history_change, strip_mapping):
     if isinstance(history_change, str) and '->' in history_change:
         for part in history_change.split('->'):
             part = part.strip()
+
             if part in strip_mapping.keys():
-                history_change = history_change.replace(part, strip_mapping[part])
+                history_change = history_change.replace(part, strip_mapping[part],1)
         return history_change
     return history_change
 
