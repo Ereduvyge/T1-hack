@@ -350,8 +350,5 @@ def update_slider_dates(selected_sprint, data_json):
     return min_date_seconds, max_date_seconds, marks, value
 
 
-
-
-
 if __name__ == '__main__':
-    app.run_server(debug=True, port='9090')
+    app.run_server(debug=True, host='0.0.0.0', port='9090')
