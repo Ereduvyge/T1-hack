@@ -75,7 +75,6 @@ history_to_tasks_mapping = {
 }
 
 
-
 def belogurovs_algorithm(df_tasks: pd.DataFrame, df_history: pd.DataFrame, data_sprints: pd.DataFrame) -> pd.DataFrame | str | None:
     try:
         # Convert date columns to datetime
@@ -84,9 +83,12 @@ def belogurovs_algorithm(df_tasks: pd.DataFrame, df_history: pd.DataFrame, data_
         df_history['history_date'] = pd.to_datetime(df_history['history_date'])
 
         # Calculate snapshot_datetime using vectorized operations
-        df_history['snapshot_hour'] = ((df_history['history_date'].dt.hour // 4 + 1) * 4) % 24
-        df_history['snapshot_datetime'] = df_history['history_date'].dt.floor('D') + pd.to_timedelta(df_history['snapshot_hour'], unit='H')
-        df_history.loc[df_history['snapshot_hour'] == 0, 'snapshot_datetime'] += pd.Timedelta(days=1)
+        # df_history['snapshot_hour'] = ((df_history['history_date'].dt.hour // 4 + 1) * 4) % 24
+        # df_history['snapshot_datetime'] = df_history['history_date'].dt.floor('D') + pd.to_timedelta(df_history['snapshot_hour'], unit='H')
+        # df_history.loc[df_history['snapshot_hour'] == 0, 'snapshot_datetime'] += pd.Timedelta(days=1)
+
+        df_history['snapshot_datetime'] = (df_history['history_date'] + pd.Timedelta(days=1)).dt.floor('D')
+
 
         # Drop duplicates to keep the last change per property in each snapshot interval
         df = df_history.sort_values(by=['entity_id', 'snapshot_datetime', 'history_property_name', 'history_date'])
@@ -107,9 +109,11 @@ def belogurovs_algorithm(df_tasks: pd.DataFrame, df_history: pd.DataFrame, data_
         ).reset_index()
 
         # Combine df_tasks with the pivot_df
-        df_tasks['snapshot_hour'] = ((df_tasks['create_date'].dt.hour // 4 + 1) * 4) % 24
-        df_tasks['snapshot_datetime'] = df_tasks['create_date'].dt.floor('D') + pd.to_timedelta(df_tasks['snapshot_hour'], unit='H')
-        df_tasks.loc[df_tasks['snapshot_hour'] == 0, 'snapshot_datetime'] += pd.Timedelta(days=1)
+        # df_tasks['snapshot_hour'] = ((df_tasks['create_date'].dt.hour // 4 + 1) * 4) % 24
+        # df_tasks['snapshot_datetime'] = df_tasks['create_date'].dt.floor('D') + pd.to_timedelta(df_tasks['snapshot_hour'], unit='H')
+        # df_tasks.loc[df_tasks['snapshot_hour'] == 0, 'snapshot_datetime'] += pd.Timedelta(days=1)
+
+        df_tasks['snapshot_datetime'] = (df_tasks['history_date'] + pd.Timedelta(days=1)).dt.floor('D')
         combined_df = pd.concat([df_tasks, pivot_df], ignore_index=True)
 
         # Sort and group by entity_id and snapshot_datetime
