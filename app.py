@@ -111,6 +111,13 @@ app.layout = dbc.Container([
         multi=False
     ),
     html.Br(),
+    dcc.Dropdown(
+        id="team_selector",
+        options=[],
+        value=None,
+        multi=True
+    ),
+    html.Br(),
     html.Label("Выберите дату, на которую отобразить состояние задач:"),
     dcc.Slider(
     id="date_slider",
@@ -149,6 +156,8 @@ def update_file_upload_status(tasks_filenames, history_filenames, sprints_filena
     Output('data-store', 'data'),
     Output('sprint_selector', 'options'),
     Output('sprint_selector', 'value'),
+    Output('team_selector', 'options'),
+    Output('team_selector', 'value'),
     Output('dashboard-content', 'style'),
     Output("loading-output-1", "children"),
     Input('process-button', 'n_clicks'),
@@ -164,12 +173,12 @@ def upload_output(n_clicks, tasks_contents, history_contents, sprints_contents,
     if n_clicks is None:
         # Возвращаем значения для всех 9 Outputs
         return (
-            'После загрузки нажмите получить данные', None, [], None, {'display': 'none'}, None
+            'После загрузки нажмите получить данные', None, [], None, [], None,  {'display': 'none'}, None
         )
 
     if not tasks_contents or not history_contents or not sprints_contents:
         return (
-            'Не все файлы загружены', None, [], None, {'display': 'none'}, None
+            'Не все файлы загружены', None, [], None, [], None, {'display': 'none'}, None
         )
 
     tasks_df = concatenate_files(tasks_contents, tasks_filenames)
@@ -178,7 +187,7 @@ def upload_output(n_clicks, tasks_contents, history_contents, sprints_contents,
 
     if tasks_df.empty or history_df.empty or sprints_df.empty:
         return (
-            'Все файлы должны быть в .csv формате', None, [], None, {'display': 'none'}, None
+            'Все файлы должны быть в .csv формате', None, [], None, [], None, {'display': 'none'}, None
         )
 
 
@@ -188,6 +197,11 @@ def upload_output(n_clicks, tasks_contents, history_contents, sprints_contents,
     d2 = datetime.now()
     print(d2 - d1)
     print('here2')
+
+    if type(data) != pd.DataFrame:
+        return (
+            'Ошибка в преобразовании данных (проверьте формат входных данных)', None, [], None, [], None, {'display': 'none'}, None
+        )
     # Преобразование дат
     data['snapshot_datetime'] = pd.to_datetime(data['snapshot_datetime'])
     # Преобразуем в количество секунд с эпохи UNIX
@@ -209,10 +223,17 @@ def upload_output(n_clicks, tasks_contents, history_contents, sprints_contents,
     # Выбираем первый спринт по умолчанию, если есть
     default_sprint_value = unique_sprints[0] if len(unique_sprints) > 0 else None
 
+    # Уникальные значения спринтов
+    unique_teams = data['area'].dropna().unique()  # Убираем NaN значения
+    team_options = [{"label": f"Team {team}", "value": team} for team in unique_teams if pd.notna(team)]
+    
+    # Выбираем первый спринт по умолчанию, если есть
+    default_team_value = unique_teams
+
 
     # Возвращаем обновленные параметры
     return (
-        '', data_json, options, default_sprint_value, {'display': 'block'}, None
+        '', data_json, options, default_sprint_value, team_options, default_team_value, {'display': 'block'}, None
     )
 
 
@@ -222,10 +243,11 @@ def upload_output(n_clicks, tasks_contents, history_contents, sprints_contents,
      Output("time_chart", "figure"),
      Output("priority_chart", "figure")],
     [Input("sprint_selector", "value"),
+     Input("team_selector", "value"),
      Input("date_slider", "value")],
     [State('data-store', 'data')]
 )
-def update_charts(selected_sprint, selected_date, data_json):
+def update_charts(selected_sprint, selected_team, selected_date, data_json):
     if data_json is None or selected_sprint is None or selected_date is None:
         return {}, {}, {}, {"layout": {"title": "Данные не выбраны"}}
 
@@ -244,7 +266,8 @@ def update_charts(selected_sprint, selected_date, data_json):
     filtered_data = data[
         (data['sprint_id'] == selected_sprint) &
         (data['timestamp'] == selected_datetime) &
-        (data['timestamp'].dt.microsecond == 0)
+        (data['timestamp'].dt.microsecond == 0) &
+        (data['area'].isin(selected_team))
     ]
 
     if filtered_data.empty:
@@ -317,7 +340,7 @@ def update_slider_dates(selected_sprint, data_json):
 
     # Формируем метки слайдера для доступных дат
     marks = {
-        int(row.timestamp()): row.strftime('%Y-%m-%d %H:%M')  # Преобразуем в timestamp и форматируем для отображения
+        int(row.timestamp()): row.strftime('%Y-%m-%d')  # Преобразуем в timestamp и форматируем для отображения
         for row in pd.to_datetime(sprint_data['snapshot_datetime']).sort_values().unique()
     }
 
