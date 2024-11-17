@@ -71,7 +71,6 @@ strip_status_mapping_rus = {
     'В ожидании': 'В ожидании'
 }
 
-
 strip_priority_mapping = {
     'average': 'Средний',
     'low': 'Низкий',
@@ -80,10 +79,7 @@ strip_priority_mapping = {
 }
 
 
-strip_mapping = {}
-
-
-def replace_status(history_change):
+def replace_status(history_change, strip_mapping):
     if isinstance(history_change, str) and '->' in history_change:
         for part in history_change.split('->'):
             part = part.strip()
@@ -96,11 +92,10 @@ def replace_status(history_change):
 def preprocess(df: pd.DataFrame) -> pd.DataFrame:
     df = df.dropna(how='all')
     if 'history_change' in df.columns:
-        strip_mapping = strip_status_mapping
-        df['history_change'] = df['history_change'].apply(replace_status)
-        strip_mapping = strip_priority_mapping
-        df['history_change'] = df['history_change'].apply(replace_status)
-
+        strip_mapping = combined_mapping = strip_status_mapping | strip_priority_mapping
+        df['history_change'] = df['history_change'].apply(
+            lambda x: replace_status(x, strip_mapping=strip_mapping)
+        )
     if 'status' in df.columns:
         df["status"] = df["status"].apply(
             lambda status: status.replace(status, strip_status_mapping_rus[status])
