@@ -110,7 +110,7 @@ def preprocess(df: pd.DataFrame) -> pd.DataFrame:
         )
 
     if 'resolution' in df.columns:
-        df["resolution"] = df["resolution"].fillna('<empty>')
+        df["resolution"] = df["resolution"].fillna('Создано')
         df["resolution"] = df["resolution"].apply(
             lambda status: status.replace(status, strip_resolution_mapping[status])
         )
