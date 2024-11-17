@@ -275,8 +275,6 @@ def update_charts(selected_sprint, selected_team, selected_date, data_json):
             .drop_duplicates(subset='entity_id', keep='last')
     )
 
-    print(latest_data)
-
     # Фильтруем данные с учетом выбранных условий
     filtered_data = latest_data[
         (latest_data['sprint_id'] == selected_sprint) &  # Выбранный спринт
@@ -298,7 +296,7 @@ def update_charts(selected_sprint, selected_team, selected_date, data_json):
         'В работе': '#4472C4',  # Синий
         'Выполнено': '#ED7D31',  # Оранжевый
         'Закрыто': '#70AD47',  # Зеленый
-        'Отклонен': '#E74C3C',  # Красный
+        'Отменено': '#E74C3C',  # Красный
         'Создан': '#00B0F0'  # Голубой
     }
 
@@ -411,4 +409,4 @@ def update_slider_dates(selected_sprint, data_json):
 
 
 if __name__ == '__main__':
-    app.run_server(debug=False, host='0.0.0.0', port='9090')
+    app.run_server(debug=True, host='0.0.0.0', port='9090')
