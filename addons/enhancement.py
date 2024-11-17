@@ -86,7 +86,8 @@ def belogurovs_algorithm(df_tasks: pd.DataFrame, df_history: pd.DataFrame, data_
 
 
         # Drop duplicates to keep the last change per property in each snapshot interval
-        df = df_history.sort_values(by=['entity_id', 'snapshot_datetime', 'history_property_name', 'history_date'])
+        df = df_history[df_history['history_property_name'].isin(['Статус', 'Резолюция', 'Срок исполнения', 'Задача', 'Оценка', 'Приоритет'])]
+        df = df.sort_values(by=['entity_id', 'snapshot_datetime', 'history_property_name', 'history_date'])
         df = df.drop_duplicates(subset=['entity_id', 'snapshot_datetime', 'history_property_name'], keep='last')
 
         # Map history_property_name to corresponding column names using the mapping dictionary
