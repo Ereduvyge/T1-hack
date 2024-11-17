@@ -15,7 +15,7 @@ from addons.preprocess import preprocess
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 
 def concatenate_files(contents_list, filenames):
-    try:
+    #try:
         if contents_list is not None:
             dfs = []
             for contents, filename in zip(contents_list, filenames):
@@ -28,8 +28,8 @@ def concatenate_files(contents_list, filenames):
                 concatenated_df = preprocess(concatenated_df)
                 return concatenated_df
         return pd.DataFrame()
-    except:
-        return pd.DataFrame()
+    # except:
+    #     return pd.DataFrame()
 
 # Main layout
 app.layout = dbc.Container([
